@@ -1,27 +1,35 @@
 const express = require("express");
 const app = express();
-app.use(express.static("public"));
-
-const server = require("http").Server(app);
-const io = require("socket.io")(server);
+const http = require("http");
+const server = http.createServer(app);
+const { Server } = require("socket.io");
+const io = new Server(server);
+const path = require("path");
+const fs = require("fs");
 
 const PORT = 3000;
-const IP = "127.0.0.1";
-server.listen(PORT, IP);
-console.log("Server started on http://127.0.0.1:3512");
+
+// Serve static files (JS, CSS, images, etc.)
+app.use(express.static(path.join(__dirname, "../public")));
+app.use("/src", express.static(path.join(__dirname, "")));
 
 app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/public/" + "home.html");
+  res.sendFile(path.join(__dirname, "../public/home.html"));
 });
 
-app.get("/choose", (req, res) => {
-  res.sendFile(__dirname + "/public/" + "choose.html");
+// Dynamic HTML routing
+app.get("/:page", (req, res) => {
+  const page = req.params.page;
+  const filePath = path.join(__dirname, "../public", `${page}.html`);
+
+  // Check if file exists to avoid errors
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send("404 - Page Not Found");
+  }
 });
 
-app.get("/leaderboard", (req, res) => {
-  res.sendFile(__dirname + "/public/" + "home.html");
-});
-
-app.get("/play", (req, res) => {
-  res.sendFile(__dirname + "/public/" + "home.html");
+server.listen(PORT, () => {
+  console.log(`Server running at http://127.0.0.1:${PORT}`);
 });

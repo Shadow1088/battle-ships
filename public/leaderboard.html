@@ -1,28 +1,24 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
-    <script src="../lib/p5.js"></script>
-    
-    <link rel="stylesheet" type="text/css" href="../public/style.css">
-    <meta charset="utf-8" />
-    <title>BATTLE SHIPS</title>
-    <link rel="icon" href="../img/icon.png" type="image/png"/>
+    <head>
+        <link rel="stylesheet" href="../style.css" />
+        <meta charset="utf-8" />
+        <title>BATTLE SHIPS</title>
+        <link rel="icon" href="/img/icon.png" type="image/png" />
+    </head>
+    <body>
+        <main>
+            <header>
+                <h1>LEADERBOARD</h1>
+            </header>
+            <button class="button" onclick="window.location.href='index.html'">
+                Back to home page</button
+            ><br />
 
-  </head>
-  <body>
-    <main>
-        <header>
-        <h1>LEADERBOARD</h1>
-        </header>
-                  <button class="button" onclick="window.location.href='index.html'">Back to home page</button><br>
+            <div class="leaderboard"></div>
 
-        <div class="leaderboard"></div>
-
-
-<footer>Lukas Jarnot + Tomas Franta 2025 &copy; </footer>
-
-
-    </main>
-    <script type="application/javascript" src="../src/leaderboard.js"></script>
-  </body>
+            <footer>Lukas Jarnot + Tomas Franta 2025 &copy;</footer>
+        </main>
+        <script src="../src/leaderboard.js"></script>
+    </body>
 </html>
