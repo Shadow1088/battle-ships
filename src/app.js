@@ -11,7 +11,9 @@ const PORT = 3000;
 
 // Serve static files (JS, CSS, images, etc.)
 app.use(express.static(path.join(__dirname, "../public")));
-app.use("/src", express.static(path.join(__dirname, "")));
+app.use(express.static(path.join(__dirname, "/client")));
+
+console.log(__dirname);
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/home.html"));
@@ -26,7 +28,9 @@ app.get("/:page", (req, res) => {
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);
   } else {
-    res.status(404).send("404 - Page Not Found");
+    res
+      .status(404)
+      .sendFile(path.join(__dirname, "../public", `/client-error.html`));
   }
 });
 
