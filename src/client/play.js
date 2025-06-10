@@ -32,13 +32,17 @@ class Tile {
     this.cords = new Cords(x, y);                           //pozice x a v rámci gridu
     this.isHit = false;                                    //true pokud je pole zasaženo
     this.isShip = false;                                   //true pokud je pole součástí lodi  
-    this.isSank = false;                                  //true pokud je pole součástí potopené lodi 
+    this.isSank = false;                                  //true pokud je pole součástí potopené lodi
+    this.shipSize = 0;                                    //velikost lodi, pokud je pole součástí lodi 
 
     this.otherShipTiles = [];                             //pole s ostatními lodními políčky v rámci jedné lodi
   }
 }
-let gridOneInfo = [gridSize] [gridSize];
 
+
+
+
+let gridOneInfo = [];
 
 
 
@@ -52,17 +56,17 @@ function preload() {
 
 
   // Načtení obrázků lodí
-  minishipImage = loadImage('../../img/battleship5.png');
+  minishipImage = loadImage('../../img/miniShip.png');
   smallshipImage = loadImage('../../img/battleship1.png');
-  mediumshipImage = loadImage('../../img/battleship2.png');
+  mediumshipImage = loadImage('../../img/mediumShip.png');
   largeshipImage = loadImage('../../img/battleship3.png');
 
 
 
 
-  for (let i = 1; i <= gridSize; i++) {
-
-    for (let j = 1; j <= gridSize; j++) {
+  for (let i = 0; i < gridSize; i++) {
+    gridOneInfo[i] = []; // Inicializace řádku v mřížce
+    for (let j = 0; j < gridSize; j++) {
       gridOneInfo[i][j] = new Tile(i, j);
     }
   }
@@ -77,6 +81,31 @@ function draw() {
   whatStatus.innerHTML = "Status: " + gameStatus; // Zobrazí stav hry
 
 
+  //image(mediumshipImage, 0, 0, 100, 500);
+
+
+for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      // Vykreslení hracího pole
+      stroke(0);
+      fill(255);
+      rect(i * tileSize, j * tileSize, tileSize, tileSize);
+
+      // Vykreslení lodí
+      if (gridOneInfo[i][j].isShip) {
+        if (gridOneInfo[i][j].shipSize === 1) {
+          image(minishipImage, i * tileSize, j * tileSize, tileSize, tileSize);
+        } else if (gridOneInfo[i][j].shipSize === 2) {
+          image(smallshipImage, i * tileSize, j * tileSize, tileSize * 2, tileSize);
+        } else if (gridOneInfo[i][j].shipSize === 3) {
+          image(mediumshipImage, i * tileSize, j * tileSize, tileSize * 3, tileSize);
+        } else if (gridOneInfo[i][j].shipSize === 4) {
+          image(largeshipImage, i * tileSize, j * tileSize, tileSize * 4, tileSize);
+        }
+      }
+    }
+  }
+
   
 }
 
@@ -85,9 +114,11 @@ function draw() {
 function checkShipPlacementHorizontal(shipSize, startX, startY) {
   // Zkontroluje, zda je možné umístit loď na dané souřadnice
   // Předpokládáme, že loď je umístěna horizontálně
+      let x = 0;
+    let y = 0;
   for (let i = 0; i < shipSize; i++) {
-    let x = startX + i;
-    let y = startY;
+     x = startX + i;
+     y = startY;
 
     // Kontrola, zda jsou souřadnice v rámci hracího pole
     if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
@@ -106,7 +137,7 @@ function checkShipPlacementHorizontal(shipSize, startX, startY) {
 
 
 function checkShipPlacementVertical(shipSize, startX, startY) {
-  // Zkontroluje, zda je možné umístit loď na dané souřadnice
+  // Zkontroluje, zda je možné umístit loď na dané souřadnic
   // Předpokládáme, že loď je umístěna vertikálně
   for (let i = 0; i < shipSize; i++) {
     let x = startX;
@@ -135,26 +166,43 @@ function addShipCount() {
 }
 
 function createShipVertical(mouseXTC, mouseYTC) {
+      let countOfShips = playerNumber === 1 ? player1ShipCount : player2ShipCount;
 
-  if (countOfShips < minishipCount) {
-      if (checkShipPlacementVertical(1, mouseXTC, mouseYTC)) {
-        // Umístění minilodi
-        gridOneInfo[mouseXTC][mouseYTC].isShip = true;
-        //gridOneInfo[mouseXTC][mouseYTC].otherShipTiles.push(new Cords(mouseXTC, mouseYTC));
-        addShipCount();
-      }
+let shipSize = 0; // Proměnná pro velikost lodi
+
+switch (true) {
+  case countOfShips < minishipCount:
+    shipSize = 1; // Minilodě
+    break;
+    case countOfShips < minishipCount + smallshipCount:
+    shipSize = 2; // Malé lodě
+    break;
+    case countOfShips < minishipCount + smallshipCount + mediumshipCount:
+    shipSize = 3; // Střední lodě
+    break;
+    case countOfShips < minishipCount + smallshipCount + mediumshipCount + largeshipCount:
+    shipSize = 4; // Velké lodě
+    break;
+  
+  default:
+    return; // Pokud není žádná loď k umístění, ukončí funkci
+    break;
 }
-if (countOfShips < smallshipCount + minishipCount) {
-      if (checkShipPlacementVertical(2, mouseXTC, mouseYTC)) {
-          for (let i = 0; i < 2; i++) {
-            gridOneInfo[mouseXTC][mouseYTC + i].isShip = true;
-          }          
-          gridOneInfo[mouseXTC][mouseYTC].otherShipTiles.push(new Cords(mouseXTC, mouseYTC + 1));
-          gridOneInfo[mouseXTC][mouseYTC + 1].otherShipTiles.push(new Cords(mouseXTC, mouseYTC));
+
+      if (checkShipPlacementVertical(shipSize, mouseXTC, mouseYTC)) {
+        for (let i = 0; i < shipSize; i++) {
+          gridOneInfo[mouseXTC][mouseYTC + i].isShip = true;
+        }          
+ for (let i = 0; i < shipSize; i++) {
+          for (let j = 0; j < shipSize; j++) {
+            if (j != i) { // Zajišťuje, že se nepřidá souřadnice, která je již součástí lodi
+              gridOneInfo[mouseXTC][mouseYTC + i].otherShipTiles.push(new Cords(mouseXTC, mouseYTC + j));
+              
+            }            
+          }
+        }
         addShipCount();
       }
-      
-    }
   }
 
 
@@ -162,37 +210,46 @@ if (countOfShips < smallshipCount + minishipCount) {
 
 
 function createShipHorizontal(mouseXTC, mouseYTC) {
-  let countOfShips = 0; // Počet lodí, které hráč umístil
-    if (playerNumber === 1) {
-      countOfShips = player1ShipCount;
-    } else {
-      countOfShips = player2ShipCount;
-    }
+      let countOfShips = playerNumber === 1 ? player1ShipCount : player2ShipCount;
 
-if (countOfShips < minishipCount) {
-  if (checkShipPlacementHorizontal(1, mouseXTC, mouseYTC)) {
-        // Umístění minilodi
-        gridOneInfo[mouseXTC][mouseYTC].isShip = true;
-        //gridOneInfo[mouseXTC][mouseYTC].otherShipTiles.push(new Cords(mouseXTC, mouseYTC));
-        addShipCount();
-  }
+let shipSize = 0; // Proměnná pro velikost lodi
+
+switch (true) {
+  case countOfShips < minishipCount:
+    shipSize = 1; // Minilodě
+    break;
+    case countOfShips < minishipCount + smallshipCount:
+    shipSize = 2; // Malé lodě
+    break;
+    case countOfShips < minishipCount + smallshipCount + mediumshipCount:
+    shipSize = 3; // Střední lodě
+    break;
+    case countOfShips < minishipCount + smallshipCount + mediumshipCount + largeshipCount:
+    shipSize = 4; // Velké lodě
+    break;
+  
+  default:
+    
+    break;
 }
-if (countOfShips < smallshipCount + minishipCount) {
-        // Umístění malé lodi
-          
-        if (checkShipPlacementHorizontal(2, mouseXTC, mouseYTC)) {
-          for (let i = 0; i < 2; i++) {
-            gridOneInfo[mouseXTC + i][mouseYTC].isShip = true;
-          }          
-          gridOneInfo[mouseXTC][mouseYTC].otherShipTiles.push(new Cords(mouseXTC + 1, mouseYTC));
-          gridOneInfo[mouseXTC + 1][mouseYTC].otherShipTiles.push(new Cords(mouseXTC, mouseYTC));
+
+      if (checkShipPlacementHorizontal(shipSize, mouseXTC, mouseYTC)) {
+        for (let i = 0; i < shipSize; i++) {
+          gridOneInfo[mouseXTC + i][mouseYTC].isShip = true;
+          gridOneInfo[mouseXTC + i][mouseYTC].shipSize = shipSize;
+
+        }          
+ for (let i = 0; i < shipSize; i++) {
+          for (let j = 0; j < shipSize; j++) {
+            if (j != i) { // Zajišťuje, že se nepřidá souřadnice, která je již součástí lodi
+              gridOneInfo[mouseXTC + i][mouseYTC].otherShipTiles.push(new Cords(mouseXTC + j, mouseYTC));
+              
+            }            
+          }
+        }
         addShipCount();
       }
-
-
-
-}                                                                                                                   //Dodělat další velikosti lodí + tlačítko pro rotaci a konrolu vertikálního umístění
-
+    
 }
 
 
@@ -200,6 +257,12 @@ if (countOfShips < smallshipCount + minishipCount) {
 
 
 function mousePressed() {
+  if (mouseButton === RIGHT) {
+    rotate = !rotate; // Přepne rotaci lodí při kliknutí pravým tlačítkem myši
+    console.log("Rotation toggled: " + rotate);
+    return;
+  }
+  else if (mouseButton === LEFT) {
   if (gameStatus === "setup") {
     
     if (mouseX > gridSize * tileSize || mouseY > gridSize * tileSize) {
@@ -211,13 +274,17 @@ function mousePressed() {
       // Převod souřadnic myši na index políčka
       let mouseXTC = Math.floor(mouseX / tileSize);
       let mouseYTC = Math.floor(mouseY / tileSize); 
-    }
+    
 
 
     if (rotate == false) {                                                      //Volání funkcí pro tvorbu lodí
         createShipHorizontal(mouseXTC, mouseYTC);                               //Zatím jen logika bez obrázků
       }else if (rotate == true) {
         createShipVertical(mouseXTC, mouseYTC);     
+      }
+
+             console.log("Setup phase: Clicked at (" + mouseXTC + ", " + mouseYTC + ")");
+
       }
     console.log("Setup phase: Clicked at (" + mouseX + ", " + mouseY + ")");
 
@@ -228,4 +295,5 @@ function mousePressed() {
     // Například, pokud kliknete na políčko, střílíte tam
     console.log("Play phase: Clicked at (" + mouseX + ", " + mouseY + ")");
   }
+}
 }
