@@ -9,9 +9,9 @@ const fs = require("fs");
 
 const PORT = 3000;
 
-// Serve static files (JS, CSS, images, etc.)
 app.use(express.static(path.join(__dirname, "../public")));
 app.use(express.static(path.join(__dirname, "/client")));
+app.use(express.static(path.join(__dirname, "../public/img")));
 
 console.log(__dirname);
 
