@@ -14,7 +14,7 @@ let playerNumber = 1; // Číslo hráče, 1 nebo 2, určuje, kdo hraje
 let player1ShipCount = 0; // Počet lodí hráče 1
 let player2ShipCount = 0; // Počet lodí hráče 2
 
-let rotate = false;
+let rotationIsTriggered = false;
 
 
 // Definice třídy pro souřadnice
@@ -34,6 +34,8 @@ class Tile {
     this.isShip = false;                                   //true pokud je pole součástí lodi  
     this.isSank = false;                                  //true pokud je pole součástí potopené lodi
     this.shipSize = 0;                                    //velikost lodi, pokud je pole součástí lodi 
+    this.isVertical = false;                              //název vypovídá
+    this.drawIsBlocked = false;                        //true pokud je vykreslení pole blokováno, např. loď už byla vykreslena 
 
     this.otherShipTiles = [];                             //pole s ostatními lodními políčky v rámci jedné lodi
   }
@@ -77,6 +79,9 @@ function setup() {
 }
 
 function draw() {
+
+  angleMode(DEGREES); // Nastaví úhly v stupních
+
   whoPlays.innerHTML = "Player " + playerNumber + " goes"; // Zobrazí, kdo hraje
   whatStatus.innerHTML = "Status: " + gameStatus; // Zobrazí stav hry
 
@@ -89,19 +94,61 @@ for (let i = 0; i < gridSize; i++) {
       // Vykreslení hracího pole
       stroke(0);
       fill(255);
-      rect(i * tileSize, j * tileSize, tileSize, tileSize);
+      rect(i * tileSize, j * tileSize, tileSize, tileSize);                       //accualy věc v p5.js. funguje i když editor tvrdí opak
+    }
+  }
 
+  
+for (let i = 0; i < gridSize; i++) {
+    for (let j = 0; j < gridSize; j++) {
+      
       // Vykreslení lodí
-      if (gridOneInfo[i][j].isShip) {
+      if (gridOneInfo[i][j].isShip && gridOneInfo[i][j].drawIsBlocked == false) { // Zkontroluje, zda je políčko součástí lodi a není blokováno
+        
+
+        if (gridOneInfo[i][j].isVertical == false) {
+          
         if (gridOneInfo[i][j].shipSize === 1) {
           image(minishipImage, i * tileSize, j * tileSize, tileSize, tileSize);
         } else if (gridOneInfo[i][j].shipSize === 2) {
           image(smallshipImage, i * tileSize, j * tileSize, tileSize * 2, tileSize);
+          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
         } else if (gridOneInfo[i][j].shipSize === 3) {
           image(mediumshipImage, i * tileSize, j * tileSize, tileSize * 3, tileSize);
+          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi                      tři vnořené fory se mi dělat nechce
+          gridOneInfo[i + 2][j].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
         } else if (gridOneInfo[i][j].shipSize === 4) {
           image(largeshipImage, i * tileSize, j * tileSize, tileSize * 4, tileSize);
+          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
+          gridOneInfo[i + 2][j].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
+          gridOneInfo[i + 3][j].drawIsBlocked = true; // Zamezí překreslení čtvrtého políčka lodi
+          }
+
+        } else if (gridOneInfo[i][j].isVertical == true) {                                                        // Není dokončeno, až najdu chybu, tak dokončím
+
+          rotate(90); // Otočí obrázek o 90 stupňů, pokud je loď umístěna vertikálně
+
+        if (gridOneInfo[i][j].shipSize === 1) {
+          image(minishipImage, i * tileSize, j * tileSize, tileSize, tileSize);
+        } else if (gridOneInfo[i][j].shipSize === 2) {
+          image(smallshipImage, i * tileSize, j * tileSize, tileSize * 2, tileSize);
+          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
+        } else if (gridOneInfo[i][j].shipSize === 3) {
+          image(mediumshipImage, i * tileSize, j * tileSize, tileSize * 3, tileSize);
+          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi                      tři vnořené fory se mi dělat nechce
+          gridOneInfo[i + 2][j].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
+        } else if (gridOneInfo[i][j].shipSize === 4) {
+          image(largeshipImage, i * tileSize, j * tileSize, tileSize * 4, tileSize);
+          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
+          gridOneInfo[i + 2][j].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
+          gridOneInfo[i + 3][j].drawIsBlocked = true; // Zamezí překreslení čtvrtého políčka lodi
+          }
+
+          rotate(-90); // Otočí obrázek zpět na původní orientaci
+
         }
+        
+
       }
     }
   }
@@ -186,12 +233,16 @@ switch (true) {
   
   default:
     return; // Pokud není žádná loď k umístění, ukončí funkci
-    break;
+    
 }
 
       if (checkShipPlacementVertical(shipSize, mouseXTC, mouseYTC)) {
         for (let i = 0; i < shipSize; i++) {
           gridOneInfo[mouseXTC][mouseYTC + i].isShip = true;
+          gridOneInfo[mouseXTC][mouseYTC + i].isVertical = true;
+          gridOneInfo[mouseXTC][mouseYTC + i].shipSize = shipSize;
+
+
         }          
  for (let i = 0; i < shipSize; i++) {
           for (let j = 0; j < shipSize; j++) {
@@ -258,8 +309,8 @@ switch (true) {
 
 function mousePressed() {
   if (mouseButton === RIGHT) {
-    rotate = !rotate; // Přepne rotaci lodí při kliknutí pravým tlačítkem myši
-    console.log("Rotation toggled: " + rotate);
+    rotationIsTriggered = !rotationIsTriggered; // Přepne rotaci lodí při kliknutí pravým tlačítkem myši
+    console.log("Rotation toggled: " + rotationIsTriggered);
     return;
   }
   else if (mouseButton === LEFT) {
@@ -277,9 +328,9 @@ function mousePressed() {
     
 
 
-    if (rotate == false) {                                                      //Volání funkcí pro tvorbu lodí
-        createShipHorizontal(mouseXTC, mouseYTC);                               //Zatím jen logika bez obrázků
-      }else if (rotate == true) {
+    if (rotationIsTriggered == false) {                                                      //Volání funkcí pro tvorbu lodí
+        createShipHorizontal(mouseXTC, mouseYTC);                              
+      }else if (rotationIsTriggered == true) {
         createShipVertical(mouseXTC, mouseYTC);     
       }
 
