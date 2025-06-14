@@ -1,6 +1,7 @@
 
 const minishipCount = 4; const smallshipCount = 3; const mediumshipCount = 2; const largeshipCount = 1;   // Počet lodí pro každou velikost
 let minishipImage; let smallshipImage; let mediumshipImage; let largeshipImage; // Obrázky lodí
+let vminishipImage; let vsmallshipImage; let vmediumshipImage; let vlargeshipImage; // Obrázky lodí ale vertikálně
 
 const gridSize = 10; // Velikost hracího pole
 const tileSize = 50; // Velikost jednoho políčka
@@ -63,6 +64,10 @@ function preload() {
   mediumshipImage = loadImage('../../img/mediumShip.png');
   largeshipImage = loadImage('../../img/battleship3.png');
 
+  vminishipImage = loadImage('../../img/verticalShips/miniShip.png');
+  vsmallshipImage = loadImage('../../img/verticalShips/battleship1.png');
+  vmediumshipImage = loadImage('../../img/verticalShips/mediumShip.png');
+  vlargeshipImage = loadImage('../../img/verticalShips/battleship3.png');
 
 
 
@@ -126,25 +131,25 @@ for (let i = 0; i < gridSize; i++) {
 
         } else if (gridOneInfo[i][j].isVertical == true) {                                                        // Není dokončeno, až najdu chybu, tak dokončím
 
-          rotate(90); // Otočí obrázek o 90 stupňů, pokud je loď umístěna vertikálně
+          //rotate(90); // Otočí obrázek o 90 stupňů, pokud je loď umístěna vertikálně
 
         if (gridOneInfo[i][j].shipSize === 1) {
-          image(minishipImage, i * tileSize, j * tileSize, tileSize, tileSize);
+          image(vminishipImage, i * tileSize, j * tileSize, tileSize, tileSize);
         } else if (gridOneInfo[i][j].shipSize === 2) {
-          image(smallshipImage, i * tileSize, j * tileSize, tileSize * 2, tileSize);
-          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
+          image(vsmallshipImage, i * tileSize, j * tileSize, tileSize, tileSize * 2);
+          gridOneInfo[i][j + 1].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
         } else if (gridOneInfo[i][j].shipSize === 3) {
-          image(mediumshipImage, i * tileSize, j * tileSize, tileSize * 3, tileSize);
-          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi                      tři vnořené fory se mi dělat nechce
-          gridOneInfo[i + 2][j].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
+          image(vmediumshipImage, i * tileSize, j * tileSize, tileSize, tileSize * 3);
+          gridOneInfo[i][j + 1].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi                      tři vnořené fory se mi dělat nechce
+          gridOneInfo[i][j + 2].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
         } else if (gridOneInfo[i][j].shipSize === 4) {
-          image(largeshipImage, i * tileSize, j * tileSize, tileSize * 4, tileSize);
-          gridOneInfo[i + 1][j].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
-          gridOneInfo[i + 2][j].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
-          gridOneInfo[i + 3][j].drawIsBlocked = true; // Zamezí překreslení čtvrtého políčka lodi
+          image(vlargeshipImage, i * tileSize, j * tileSize, tileSize, tileSize * 4);
+          gridOneInfo[i][j + 1].drawIsBlocked = true; // Zamezí překreslení druhého políčka lodi
+          gridOneInfo[i][j + 2].drawIsBlocked = true; // Zamezí překreslení třetího políčka lodi
+          gridOneInfo[i][j + 3].drawIsBlocked = true; // Zamezí překreslení čtvrtého políčka lodi
           }
 
-          rotate(-90); // Otočí obrázek zpět na původní orientaci
+          //rotate(-90); // Otočí obrázek zpět na původní orientaci
 
         }
         
@@ -186,9 +191,12 @@ function checkShipPlacementHorizontal(shipSize, startX, startY) {
 function checkShipPlacementVertical(shipSize, startX, startY) {
   // Zkontroluje, zda je možné umístit loď na dané souřadnic
   // Předpokládáme, že loď je umístěna vertikálně
+        let x = 0;
+    let y = 0;
+
   for (let i = 0; i < shipSize; i++) {
-    let x = startX;
-    let y = startY + i;
+    x = startX;
+    y = startY + i;
 
     // Kontrola, zda jsou souřadnice v rámci hracího pole
     if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
@@ -252,7 +260,7 @@ switch (true) {
             }            
           }
         }
-        addShipCount();
+        addShipCount();   console.log("Ship placed vertically at (" + mouseXTC + ", " + mouseYTC + ") with size " + shipSize);
       }
   }
 
@@ -298,7 +306,7 @@ switch (true) {
             }            
           }
         }
-        addShipCount();
+        addShipCount();   console.log("Ship placed horizontally at (" + mouseXTC + ", " + mouseYTC + ") with size " + shipSize);
       }
     
 }
