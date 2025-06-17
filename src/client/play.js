@@ -30,37 +30,78 @@ class Ship {
     this.orientation = orientation;
     this.x = x;
     this.y = y;
-    this.w = gridArea.w / TILE_SIZE;
-    this.h = (gridArea.h / TILE_SIZE) * this.size;
+    this.w = (gridArea.h / TILE_SIZE) * this.size;
+    this.h = gridArea.w / TILE_SIZE;
     this.tiles = [];
     this.img = "ship" + size;
     this.hp = size;
     this.state = 0; // 0: unplaced
     this.row = round(y / (gridArea.h / TILE_SIZE));
   }
+
   check() {
     if (this.hp == 0) {
       console.log("ship destroyed");
     }
   }
+
   draw() {
     push();
 
-    imageMode(CORNER);
-    translate(this.x, this.y);
-    rotate(-HALF_PI * this.orientation);
-    translate(-this.w / 2, -this.h / (this.size * 2));
+    // Calculate rotation point based on first grid square
+    let rotationX, rotationY;
+    if (this.orientation === 0) {
+      // horizontal
+      rotationX = this.x + this.w / (this.size * 2);
+      rotationY = this.y + this.h / 2;
+      translate(rotationX, rotationY);
+      rotate(-HALF_PI * this.orientation);
 
-    image(IMAGES[this.img], 0, 0, this.w, this.h);
+      // Draw image centered on rotation point
+      translate(((this.w / 2) * this.size) / 6, 0);
+      imageMode(CENTER);
+      image(IMAGES[this.img], 0, 0, this.w, this.h);
+    } else {
+      // vertical
+      rotationX = this.x + this.w / 2;
+      rotationY = this.y + this.h / (this.size * 2);
+      translate(rotationX, rotationY);
+      rotate(-HALF_PI * this.orientation);
 
-    noFill();
-    stroke("blue");
-    rect(0, 0, this.w, this.h);
+      // Draw image centered on rotation point
+      translate(((-this.h / 2) * this.size) / 4, 0);
+      imageMode(CENTER);
+      image(IMAGES[this.img], 0, 0, this.h, this.w);
+    }
 
     pop();
+
+    // Debug outline
+    noFill();
+    stroke("blue");
+    rect(this.x, this.y, this.w, this.h);
   }
+
   rotate() {
     this.orientation = abs(this.orientation - 1);
+
+    // Swap width and height when rotating
+    let temp = this.w;
+    this.w = this.h;
+    this.h = temp;
+
+    // Adjust position to keep the first grid square in the same place
+    if (this.orientation === 0) {
+      // now horizontal
+      // Moving from vertical to horizontal
+      this.x = this.x;
+      this.y = this.y;
+    } else {
+      // now vertical
+      // Moving from horizontal to vertical
+      this.x = this.x;
+      this.y = this.y;
+    }
   }
 }
 
@@ -92,7 +133,7 @@ function setup() {
     if (i > 5) {
       pships[i] = new Ship(
         1,
-        1,
+        1, // start horizontal
         sideArea.x + (gridArea.w / TILE_SIZE) * (i - 6),
         (gridArea.h / TILE_SIZE) * (6 + 2),
       );
@@ -101,7 +142,7 @@ function setup() {
     if (i > 2) {
       pships[i] = new Ship(
         2,
-        1,
+        1, // start horizontal
         sideArea.x,
         (gridArea.h / TILE_SIZE) * (i + 2),
       );
@@ -110,14 +151,14 @@ function setup() {
     if (i > 0) {
       pships[i] = new Ship(
         3,
-        1,
+        1, // start horizontal
         sideArea.x,
         (gridArea.h / TILE_SIZE) * (i + 2),
       );
       continue;
     }
     if (!i) {
-      pships[i] = new Ship(4, 1, sideArea.x, (gridArea.h / TILE_SIZE) * 2);
+      pships[i] = new Ship(4, 1, sideArea.x / 2, (gridArea.h / TILE_SIZE) * 2);
     }
   }
   updateLayout();
@@ -187,15 +228,27 @@ function updateLayout() {
   buttonArea.w = sideArea.w / 3;
   buttonArea.h = sideArea.h;
 
+  // Update ship dimensions when layout changes
   for (let i = 0; i < pships.length; i++) {
-    pships[i].w = gridArea.w / TILE_SIZE;
-    pships[i].h = (gridArea.h / TILE_SIZE) * pships[i].size;
-    if (!pships[i].state) {
-      pships[i].x =
-        sideArea.x +
-        pships[i].w / 2 +
-        (gridArea.h / TILE_SIZE) * ((i - 6 + abs(i - 6)) / 2);
-      pships[i].y = pships[i].row * (gridArea.h / TILE_SIZE) + pships[i].w / 2;
+    let ship = pships[i];
+
+    // Recalculate dimensions based on orientation
+    if (ship.orientation === 1) {
+      // horizontal
+      ship.w = (gridArea.w / TILE_SIZE) * ship.size;
+      ship.h = gridArea.h / TILE_SIZE;
+    } else {
+      // vertical
+      ship.w = gridArea.w / TILE_SIZE;
+      ship.h = (gridArea.h / TILE_SIZE) * ship.size;
+    }
+
+    // Reset position if not placed
+    if (!ship.state) {
+      let offset = (gridArea.h / TILE_SIZE) * ((i - 6 + abs(i - 6)) / 2);
+
+      ship.x = sideArea.x + offset;
+      ship.y = ship.row * (gridArea.h / TILE_SIZE);
     }
   }
 }
@@ -225,6 +278,15 @@ function mouseClicked() {
   let index = TILES[tile[0] + 10 * tile[1]];
   if (index.state == 0) {
     index.state = 1;
+  }
+}
+
+function keyPressed() {
+  // Add rotation on 'R' key press for testing
+  if (key === "r" || key === "R") {
+    for (let ship of pships) {
+      ship.rotate();
+    }
   }
 }
 
