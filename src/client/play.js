@@ -15,6 +15,7 @@ let TILES = [];
 let COMPUTER_TILES = []; // Computer's grid
 let pships = [];
 let computerShips = [];
+let resetButton = {};
 
 // Game state variables
 let gameScene = "placing"; // "placing", "attacking", "observing"
@@ -59,6 +60,7 @@ class Ship {
   constructor(size, orientation, x, y) {
     this.size = size;
     this.orientation = orientation;
+    this.originalOrientation = orientation; // Store original orientation
     this.x = x;
     this.y = y;
     this.w = (gridArea.h / TILE_SIZE) * this.size;
@@ -77,6 +79,18 @@ class Ship {
   check() {
     if (this.hp == 0 && !this.destroyed) {
       this.destroyed = true;
+
+      // Store tiles that belonged to this ship for visualization
+      this.destroyedTiles = [];
+      let gridX = Math.floor((this.x - gridArea.x) / (gridArea.w / TILE_SIZE));
+      let gridY = Math.floor((this.y - gridArea.y) / (gridArea.h / TILE_SIZE));
+
+      for (let i = 0; i < this.size; i++) {
+        let tileX = this.orientation === 1 ? gridX + i : gridX;
+        let tileY = this.orientation === 1 ? gridY : gridY + i;
+        this.destroyedTiles.push([tileX, tileY]);
+      }
+
       console.log("ship destroyed");
       return true;
     }
@@ -187,6 +201,21 @@ class Ship {
     this.x = this.originalX;
     this.y = this.originalY;
     this.state = 0; // unplaced
+
+    // Reset orientation to original
+    if (this.orientation !== this.originalOrientation) {
+      this.orientation = this.originalOrientation;
+      // Swap width and height back to original
+      if (this.originalOrientation === 1) {
+        // Should be horizontal
+        this.w = (gridArea.h / TILE_SIZE) * this.size;
+        this.h = gridArea.w / TILE_SIZE;
+      } else {
+        // Should be vertical
+        this.w = gridArea.w / TILE_SIZE;
+        this.h = (gridArea.h / TILE_SIZE) * this.size;
+      }
+    }
   }
 
   draw() {
@@ -355,6 +384,10 @@ function setup() {
       pships[i] = new Ship(4, 1, sideArea.x / 2, (gridArea.h / TILE_SIZE) * 2);
     }
   }
+  resetButton.x = buttonArea.x + 10;
+  resetButton.y = buttonArea.y + 10;
+  resetButton.w = buttonArea.w - 20;
+  resetButton.h = 30;
 
   // Store original positions after setup
   for (let ship of pships) {
@@ -475,6 +508,90 @@ function draw() {
   // Handle computer turn
   if (gameScene === "observing" && !playerTurn && !gameOver) {
     setTimeout(computerTurn, 1000); // 1 second delay for computer move
+  }
+  drawResetButton();
+  drawDestroyedShips();
+}
+
+function drawResetButton() {
+  // Button styling
+  let buttonHover = isMouseOverResetButton();
+
+  if (buttonHover) {
+    fill(180, 50, 50); // darker red on hover
+  } else {
+    fill(220, 80, 80); // light red
+  }
+
+  stroke(0);
+  strokeWeight(2);
+  rect(resetButton.x, resetButton.y, resetButton.w, resetButton.h, 5);
+
+  // Button text
+  fill(255);
+  textAlign(CENTER, CENTER);
+  textSize(14);
+  textStyle(BOLD);
+  text(
+    "RESET",
+    resetButton.x + resetButton.w / 2,
+    resetButton.y + resetButton.h / 2,
+  );
+
+  textAlign(LEFT); // Reset text alignment
+  textStyle(NORMAL);
+}
+
+function isMouseOverResetButton() {
+  return (
+    mouseX >= resetButton.x &&
+    mouseX <= resetButton.x + resetButton.w &&
+    mouseY >= resetButton.y &&
+    mouseY <= resetButton.y + resetButton.h
+  );
+}
+function drawDestroyedShips() {
+  let tileSizeW = gridArea.w / TILE_SIZE;
+  let tileSizeH = gridArea.h / TILE_SIZE;
+
+  // Draw crossed out destroyed ships on computer grid (when attacking)
+  if (gameScene === "attacking") {
+    for (let ship of computerShips) {
+      if (ship.destroyed && ship.destroyedTiles) {
+        stroke(255, 0, 0);
+        strokeWeight(3);
+
+        for (let tile of ship.destroyedTiles) {
+          let x = gridArea.x + tile[0] * tileSizeW;
+          let y = gridArea.y + tile[1] * tileSizeH;
+
+          // Draw X across the tile
+          line(x, y, x + tileSizeW, y + tileSizeH);
+          line(x + tileSizeW, y, x, y + tileSizeH);
+        }
+        strokeWeight(1);
+      }
+    }
+  }
+
+  // Draw crossed out destroyed ships on player grid (when observing)
+  if (gameScene === "observing") {
+    for (let ship of pships) {
+      if (ship.destroyed && ship.destroyedTiles) {
+        stroke(255, 0, 0);
+        strokeWeight(3);
+
+        for (let tile of ship.destroyedTiles) {
+          let x = gridArea.x + tile[0] * tileSizeW;
+          let y = gridArea.y + tile[1] * tileSizeH;
+
+          // Draw X across the tile
+          line(x, y, x + tileSizeW, y + tileSizeH);
+          line(x + tileSizeW, y, x, y + tileSizeH);
+        }
+        strokeWeight(1);
+      }
+    }
   }
 }
 
@@ -742,15 +859,15 @@ function drawUI() {
 }
 
 function draw() {
-  background("purple"); // game area = white
+  background("purple");
 
   // Grid area (left square)
-  fill(200); // light gray
+  fill(200);
   noStroke();
   rect(gridArea.x, gridArea.y, gridArea.w, gridArea.h);
 
   // Side area (right rectangle)
-  fill(170); // slightly darker gray
+  fill(170);
   noStroke();
   rect(sideArea.x, sideArea.y, sideArea.w, sideArea.h);
 
@@ -774,9 +891,15 @@ function draw() {
   // Draw UI text
   drawUI();
 
-  // Handle computer turn with increased delay
+  // Draw reset button
+  drawResetButton();
+
+  // Draw destroyed ships
+  drawDestroyedShips();
+
+  // Handle computer turn
   if (gameScene === "observing" && !playerTurn && !gameOver) {
-    setTimeout(computerTurn, 2500); // 2.5 second delay for computer move
+    setTimeout(computerTurn, 2500);
   }
 }
 
@@ -797,8 +920,20 @@ function computerTurn() {
     for (let ship of pships) {
       if (ship.id === tile.shipId) {
         ship.hp--;
-        if (ship.check()) {
-          // Ship destroyed - clear target queue
+        if (ship.hp <= 0 && !ship.destroyed) {
+          ship.destroyed = true;
+
+          // Store destroyed tiles for visualization
+          ship.destroyedTiles = [];
+          for (let i = 0; i < TILES.length; i++) {
+            if (TILES[i].shipId === ship.id) {
+              let col = i % TILE_SIZE;
+              let row = Math.floor(i / TILE_SIZE);
+              ship.destroyedTiles.push([col, row]);
+            }
+          }
+
+          // Clear target queue
           computerTargetQueue = [];
           computerLastHit = null;
           computerHitDirection = null;
@@ -983,6 +1118,11 @@ function updateLayout() {
   buttonArea.w = sideArea.w / 3;
   buttonArea.h = sideArea.h;
 
+  resetButton.x = buttonArea.x + 10;
+  resetButton.y = buttonArea.y + 10;
+  resetButton.w = buttonArea.w - 20;
+  resetButton.h = 30;
+
   // Update ship dimensions when layout changes
   for (let i = 0; i < pships.length; i++) {
     let ship = pships[i];
@@ -1107,8 +1247,18 @@ function handleAttackingMousePress() {
     for (let ship of computerShips) {
       if (ship.id === computerTile.shipId) {
         ship.hp--;
-        if (ship.hp <= 0) {
+        if (ship.hp <= 0 && !ship.destroyed) {
           ship.destroyed = true;
+
+          // Store destroyed tiles for visualization
+          ship.destroyedTiles = [];
+          for (let i = 0; i < COMPUTER_TILES.length; i++) {
+            if (COMPUTER_TILES[i].shipId === ship.id) {
+              let col = i % TILE_SIZE;
+              let row = Math.floor(i / TILE_SIZE);
+              ship.destroyedTiles.push([col, row]);
+            }
+          }
         }
         break;
       }
@@ -1249,4 +1399,10 @@ async function submitScore(username, score) {
 
   const text = await res.text();
   console.log("Submit response:", text);
+}
+
+function mouseClicked() {
+  if (isMouseOverResetButton()) {
+    restartGame();
+  }
 }
