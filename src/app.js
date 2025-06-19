@@ -1,3 +1,6 @@
+const { MongoClient, ServerApiVersion } = require("mongodb");
+const uri =
+  "mongodb+srv://first:<db_password>@cluster0.nnz52aa.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const express = require("express");
 const app = express();
 const http = require("http");

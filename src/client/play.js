@@ -3,13 +3,31 @@ let canvas;
 let TILE_SIZE = 10;
 let font; // Font variable
 
+let playerName = "";
+let score = 0;
+
 let gameArea = {}; // this will now *be* the canvas
 let gridArea = {};
 let infoArea = {};
 let sideArea = {};
 let buttonArea = {};
 let TILES = [];
+let COMPUTER_TILES = []; // Computer's grid
 let pships = [];
+let computerShips = [];
+
+// Game state variables
+let gameScene = "placing"; // "placing", "attacking", "observing"
+let playerTurn = true;
+let gameStarted = false;
+let gameOver = false;
+let winner = null;
+
+// Computer AI variables
+let computerLastHit = null;
+let computerTargetQueue = [];
+let computerHitDirection = null;
+let computerOriginalHit = null;
 
 // New variables for enhanced functionality
 let selectedShip = null;
@@ -23,14 +41,17 @@ const IMAGES = {
   ship2: null,
   ship3: null,
   ship4: null,
+  hit: null,
+  miss: null,
 };
 
 class Tile {
   constructor() {
     this.id = 0; // ship id (size), <1;5>, if bigger: id-5 = size;
-    this.state = 0; // 1: hit, 0: not hit
-    this.occupied = false; // new: track if tile is occupied by a ship
-    this.shipId = null; // new: which ship occupies this tile
+    this.state = 0; // 0: empty, 1: hit, 2: miss
+    this.occupied = false; // track if tile is occupied by a ship
+    this.shipId = null; // which ship occupies this tile
+    this.revealed = false; // for computer tiles - whether player has clicked here
   }
 }
 
@@ -50,12 +71,16 @@ class Ship {
     this.originalX = x; // store original position for reset
     this.originalY = y;
     this.id = Math.random(); // unique identifier
+    this.destroyed = false;
   }
 
   check() {
-    if (this.hp == 0) {
+    if (this.hp == 0 && !this.destroyed) {
+      this.destroyed = true;
       console.log("ship destroyed");
+      return true;
     }
+    return false;
   }
 
   // Check if mouse is over this ship
@@ -137,6 +162,7 @@ class Ship {
       if (TILES[tileIndex]) {
         TILES[tileIndex].occupied = true;
         TILES[tileIndex].shipId = this.id;
+        TILES[tileIndex].id = this.size;
       }
     }
 
@@ -150,6 +176,7 @@ class Ship {
       if (TILES[i].shipId === this.id) {
         TILES[i].occupied = false;
         TILES[i].shipId = null;
+        TILES[i].id = 0;
       }
     }
   }
@@ -163,6 +190,9 @@ class Ship {
   }
 
   draw() {
+    // Only draw ships in placing scene or if it's player's ships in observing scene
+    if (gameScene !== "placing" && gameScene !== "observing") return;
+
     push();
 
     // Highlight selected ship
@@ -282,9 +312,17 @@ function setup() {
   canvas = createCanvas(gameArea.w, gameArea.h);
   canvas.position(gameArea.x, gameArea.y); // move canvas to proper location
 
+  // Initialize player tiles
   for (let i = 0; i < 100; i++) {
     TILES[i] = new Tile();
   }
+
+  // Initialize computer tiles
+  for (let i = 0; i < 100; i++) {
+    COMPUTER_TILES[i] = new Tile();
+  }
+
+  // Initialize player ships
   for (let i = 0; i < 10; i++) {
     if (i > 5) {
       pships[i] = new Ship(
@@ -324,7 +362,81 @@ function setup() {
     ship.originalY = ship.y;
   }
 
+  // Generate computer ships
+  generateComputerShips();
+
   updateLayout();
+}
+
+function generateComputerShips() {
+  computerShips = [];
+  let shipSizes = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1];
+
+  for (let size of shipSizes) {
+    let placed = false;
+    let attempts = 0;
+
+    while (!placed && attempts < 100) {
+      let x = Math.floor(Math.random() * TILE_SIZE);
+      let y = Math.floor(Math.random() * TILE_SIZE);
+      let orientation = Math.floor(Math.random() * 2);
+
+      if (canPlaceComputerShip(x, y, size, orientation)) {
+        placeComputerShip(x, y, size, orientation);
+        placed = true;
+      }
+      attempts++;
+    }
+  }
+}
+
+function canPlaceComputerShip(x, y, size, orientation) {
+  // Check bounds
+  if (orientation === 1) {
+    // horizontal
+    if (x + size > TILE_SIZE || y >= TILE_SIZE) return false;
+  } else {
+    // vertical
+    if (y + size > TILE_SIZE || x >= TILE_SIZE) return false;
+  }
+
+  // Check for overlaps
+  for (let i = 0; i < size; i++) {
+    let checkX = orientation === 1 ? x + i : x;
+    let checkY = orientation === 1 ? y : y + i;
+    let tileIndex = checkX + checkY * TILE_SIZE;
+
+    if (COMPUTER_TILES[tileIndex].occupied) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function placeComputerShip(x, y, size, orientation) {
+  let ship = {
+    x: x,
+    y: y,
+    size: size,
+    orientation: orientation,
+    hp: size,
+    destroyed: false,
+    id: Math.random(),
+  };
+
+  computerShips.push(ship);
+
+  // Mark tiles as occupied
+  for (let i = 0; i < size; i++) {
+    let tileX = orientation === 1 ? x + i : x;
+    let tileY = orientation === 1 ? y : y + i;
+    let tileIndex = tileX + tileY * TILE_SIZE;
+
+    COMPUTER_TILES[tileIndex].occupied = true;
+    COMPUTER_TILES[tileIndex].shipId = ship.id;
+    COMPUTER_TILES[tileIndex].id = size;
+  }
 }
 
 function draw() {
@@ -348,13 +460,117 @@ function draw() {
 
   drawGrid();
   drawGridHighlights();
+  drawHitsMisses();
 
-  for (let i = 0; i < pships.length; i++) {
-    pships[i].draw();
+  // Draw ships based on current scene
+  if (gameScene === "placing" || gameScene === "observing") {
+    for (let i = 0; i < pships.length; i++) {
+      pships[i].draw();
+    }
   }
 
   // Draw UI text
   drawUI();
+
+  // Handle computer turn
+  if (gameScene === "observing" && !playerTurn && !gameOver) {
+    setTimeout(computerTurn, 1000); // 1 second delay for computer move
+  }
+}
+
+function drawHitsMisses() {
+  let tileSizeW = gridArea.w / TILE_SIZE;
+  let tileSizeH = gridArea.h / TILE_SIZE;
+
+  if (gameScene === "attacking") {
+    // Draw hits and misses on computer grid
+    for (let i = 0; i < COMPUTER_TILES.length; i++) {
+      let col = i % TILE_SIZE;
+      let row = Math.floor(i / TILE_SIZE);
+      let tile = COMPUTER_TILES[i];
+
+      if (tile.revealed) {
+        let x = gridArea.x + col * tileSizeW;
+        let y = gridArea.y + row * tileSizeH;
+
+        if (tile.occupied && tile.state === 1) {
+          // Hit - use image
+          if (IMAGES.hit) {
+            imageMode(CORNER);
+            image(IMAGES.hit, x, y, tileSizeW, tileSizeH);
+          } else {
+            // Fallback
+            fill(255, 0, 0);
+            ellipse(
+              x + tileSizeW / 2,
+              y + tileSizeH / 2,
+              tileSizeW * 0.8,
+              tileSizeH * 0.8,
+            );
+          }
+        } else if (tile.state === 2) {
+          // Miss - use image
+          if (IMAGES.miss) {
+            imageMode(CORNER);
+            image(IMAGES.miss, x, y, tileSizeW, tileSizeH);
+          } else {
+            // Fallback
+            fill(0, 0, 255);
+            ellipse(
+              x + tileSizeW / 2,
+              y + tileSizeH / 2,
+              tileSizeW * 0.4,
+              tileSizeH * 0.4,
+            );
+          }
+        }
+      }
+    }
+  } else if (gameScene === "observing") {
+    // Draw hits and misses on player grid
+    for (let i = 0; i < TILES.length; i++) {
+      let col = i % TILE_SIZE;
+      let row = Math.floor(i / TILE_SIZE);
+      let tile = TILES[i];
+
+      if (tile.state === 1 || tile.state === 2) {
+        let x = gridArea.x + col * tileSizeW;
+        let y = gridArea.y + row * tileSizeH;
+
+        if (tile.state === 1) {
+          // Hit - use image
+          if (IMAGES.hit) {
+            imageMode(CORNER);
+            image(IMAGES.hit, x, y, tileSizeW, tileSizeH);
+          } else {
+            // Fallback
+            fill(255, 0, 0);
+            ellipse(
+              x + tileSizeW / 2,
+              y + tileSizeH / 2,
+              tileSizeW * 0.8,
+              tileSizeH * 0.8,
+            );
+          }
+        } else if (tile.state === 2) {
+          // Miss - use image
+          if (IMAGES.miss) {
+            imageMode(CORNER);
+            image(IMAGES.miss, x, y, tileSizeW, tileSizeH);
+          } else {
+            // Fallback
+            fill(0, 0, 255);
+            ellipse(
+              x + tileSizeW / 2,
+              y + tileSizeH / 2,
+              tileSizeW * 0.4,
+              tileSizeH * 0.4,
+            );
+          }
+        }
+      }
+    }
+  }
 }
 
 function drawGridHighlights() {
@@ -372,79 +588,361 @@ function drawGridHighlights() {
     );
   }
 
-  // Show occupied tiles
-  for (let i = 0; i < TILES.length; i++) {
-    if (TILES[i].occupied) {
-      let col = i % TILE_SIZE;
-      let row = Math.floor(i / TILE_SIZE);
-      let tileW = gridArea.w / TILE_SIZE;
-      let tileH = gridArea.h / TILE_SIZE;
+  // Show occupied tiles (only in placing and observing scenes)
+  if (gameScene === "placing" || gameScene === "observing") {
+    for (let i = 0; i < TILES.length; i++) {
+      if (TILES[i].occupied) {
+        let col = i % TILE_SIZE;
+        let row = Math.floor(i / TILE_SIZE);
+        let tileW = gridArea.w / TILE_SIZE;
+        let tileH = gridArea.h / TILE_SIZE;
 
-      fill(0, 255, 0, 30);
-      noStroke();
-      rect(gridArea.x + col * tileW, gridArea.y + row * tileH, tileW, tileH);
+        fill(0, 255, 0, 30);
+        noStroke();
+        rect(gridArea.x + col * tileW, gridArea.y + row * tileH, tileW, tileH);
+      }
     }
   }
 }
 
 function drawUI() {
-  // Use a monospace font for a more game-like feel
-  textFont("Courier New, monospace");
+  // Use Arial font - most commonly used
+  textFont("Arial");
 
   fill(255);
   textAlign(LEFT);
 
-  // Title
-  textSize(16);
+  // Title and scene
+  textSize(20);
   textStyle(BOLD);
-  let yPos = infoArea.y + 25;
-  text("BATTLESHIP", infoArea.x + 10, yPos);
+  let yPos = infoArea.y + 30;
 
-  // Instructions
-  textSize(11);
+  if (gameOver) {
+    fill(255, 255, 0);
+    text(`GAME OVER - ${winner} WINS!`, infoArea.x + 10, yPos);
+    if (winner != "COMPUTER") {
+      submitScore(playerName, score);
+    }
+  } else {
+    text(`BATTLESHIP - ${gameScene.toUpperCase()}`, infoArea.x + 10, yPos);
+  }
+
+  // Scene-specific instructions
+  textSize(14);
   textStyle(NORMAL);
-  yPos += 25;
-  fill(220, 220, 255); // Light blue tint
-  text("CONTROLS:", infoArea.x + 10, yPos);
+  yPos += 30;
+  fill(220, 220, 255);
 
-  textSize(10);
-  fill(200, 200, 200); // Light gray
-  yPos += 15;
-  text("• Click to select ship", infoArea.x + 15, yPos);
-  yPos += 12;
-  text("• Drag to move", infoArea.x + 15, yPos);
-  yPos += 12;
-  text("• R to rotate selected", infoArea.x + 15, yPos);
-  yPos += 12;
-  text("• Right-click to reset", infoArea.x + 15, yPos);
-  yPos += 12;
-  text("• C to clear all", infoArea.x + 15, yPos);
-
-  if (selectedShip) {
-    yPos += 20;
+  if (gameScene === "placing") {
+    text("PLACE YOUR SHIPS:", infoArea.x + 10, yPos);
     textSize(12);
-    fill(255, 255, 100); // Yellow
-    textStyle(BOLD);
-    text("SELECTED:", infoArea.x + 10, yPos);
+    fill(200, 200, 200);
+    yPos += 20;
+    text("• Drag ships to grid", infoArea.x + 15, yPos);
+    yPos += 15;
+    text("• R to rotate", infoArea.x + 15, yPos);
+    yPos += 15;
+    text("• Right-click to reset ship", infoArea.x + 15, yPos);
+    yPos += 15;
+    text("• C to clear all", infoArea.x + 15, yPos);
+    yPos += 15;
+    text("• SPACE to start game", infoArea.x + 15, yPos);
 
-    textSize(11);
+    // Check if all ships are placed
+    let allPlaced = true;
+    for (let ship of pships) {
+      if (ship.state !== 1) {
+        allPlaced = false;
+        break;
+      }
+    }
+
+    if (allPlaced) {
+      yPos += 25;
+      fill(0, 255, 0);
+      textStyle(BOLD);
+      text("ALL SHIPS PLACED!", infoArea.x + 10, yPos);
+      yPos += 15;
+      text("Press SPACE to start!", infoArea.x + 10, yPos);
+    }
+  } else if (gameScene === "attacking") {
+    if (playerTurn) {
+      text("YOUR TURN - ATTACK:", infoArea.x + 10, yPos);
+      textSize(12);
+      fill(200, 200, 200);
+      yPos += 20;
+      text("• Click enemy grid to attack", infoArea.x + 15, yPos);
+      yPos += 15;
+      text("• Red = Hit, Blue = Miss", infoArea.x + 15, yPos);
+    } else {
+      text("COMPUTER'S TURN", infoArea.x + 10, yPos);
+      textSize(12);
+      fill(200, 200, 200);
+      yPos += 20;
+      text("• Wait for computer move", infoArea.x + 15, yPos);
+    }
+  } else if (gameScene === "observing") {
+    text("COMPUTER ATTACKS:", infoArea.x + 10, yPos);
+    textSize(12);
+    fill(200, 200, 200);
+    yPos += 20;
+    text("• Watch your grid", infoArea.x + 15, yPos);
+    yPos += 15;
+    text("• Red = Your ship hit", infoArea.x + 15, yPos);
+    yPos += 15;
+    text("• Blue = Computer missed", infoArea.x + 15, yPos);
+  }
+
+  // Game stats
+  yPos += 30;
+  textSize(14);
+  fill(255, 255, 100);
+  textStyle(BOLD);
+  text("SHIPS REMAINING:", infoArea.x + 10, yPos);
+
+  textSize(12);
+  textStyle(NORMAL);
+  fill(255);
+  yPos += 20;
+
+  let playerShipsLeft = 0;
+  let computerShipsLeft = 0;
+
+  for (let ship of pships) {
+    if (!ship.destroyed) playerShipsLeft++;
+  }
+
+  for (let ship of computerShips) {
+    if (!ship.destroyed) computerShipsLeft++;
+  }
+
+  text(`Player: ${playerShipsLeft}`, infoArea.x + 15, yPos);
+  yPos += 15;
+  text(`Computer: ${computerShipsLeft}`, infoArea.x + 15, yPos);
+
+  if (selectedShip && gameScene === "placing") {
+    yPos += 25;
+    textSize(14);
+    fill(255, 255, 100);
+    textStyle(BOLD);
+    text("SELECTED SHIP:", infoArea.x + 10, yPos);
+
+    textSize(12);
     textStyle(NORMAL);
     fill(255);
+    yPos += 20;
+    text(`Size: ${selectedShip.size}`, infoArea.x + 15, yPos);
     yPos += 15;
-    text(`Ship Size: ${selectedShip.size}`, infoArea.x + 15, yPos);
-    yPos += 12;
     text(
       `Status: ${selectedShip.state === 0 ? "UNPLACED" : "PLACED"}`,
       infoArea.x + 15,
       yPos,
     );
-    yPos += 12;
-    text(
-      `Orientation: ${selectedShip.orientation === 1 ? "HORIZONTAL" : "VERTICAL"}`,
-      infoArea.x + 15,
-      yPos,
-    );
   }
+}
+
+function draw() {
+  background("purple"); // game area = white
+
+  // Grid area (left square)
+  fill(200); // light gray
+  noStroke();
+  rect(gridArea.x, gridArea.y, gridArea.w, gridArea.h);
+
+  // Side area (right rectangle)
+  fill(170); // slightly darker gray
+  noStroke();
+  rect(sideArea.x, sideArea.y, sideArea.w, sideArea.h);
+
+  fill(150);
+  rect(infoArea.x, infoArea.y, infoArea.w, infoArea.h);
+
+  fill(120);
+  rect(buttonArea.x, buttonArea.y, buttonArea.w, buttonArea.h);
+
+  drawGrid();
+  drawGridHighlights();
+  drawHitsMisses();
+
+  // Draw ships based on current scene
+  if (gameScene === "placing" || gameScene === "observing") {
+    for (let i = 0; i < pships.length; i++) {
+      pships[i].draw();
+    }
+  }
+
+  // Draw UI text
+  drawUI();
+
+  // Handle computer turn with increased delay
+  if (gameScene === "observing" && !playerTurn && !gameOver) {
+    setTimeout(computerTurn, 2500); // 2.5 second delay for computer move
+  }
+}
+
+function computerTurn() {
+  if (playerTurn || gameOver) return;
+
+  let targetTile = getComputerTarget();
+  if (targetTile === null) return;
+
+  let tileIndex = targetTile[0] + targetTile[1] * TILE_SIZE;
+  let tile = TILES[tileIndex];
+
+  if (tile.occupied) {
+    // Hit!
+    tile.state = 1;
+
+    // Find the ship and reduce HP
+    for (let ship of pships) {
+      if (ship.id === tile.shipId) {
+        ship.hp--;
+        if (ship.check()) {
+          // Ship destroyed - clear target queue
+          computerTargetQueue = [];
+          computerLastHit = null;
+          computerHitDirection = null;
+          computerOriginalHit = null;
+        }
+        break;
+      }
+    }
+
+    computerLastHit = targetTile;
+    if (computerOriginalHit === null) {
+      computerOriginalHit = targetTile;
+    }
+
+    // Add adjacent tiles to target queue if we don't have a direction yet
+    if (computerHitDirection === null) {
+      addAdjacentTargets(targetTile[0], targetTile[1]);
+    } else {
+      // Continue in the same direction
+      continueInDirection(targetTile[0], targetTile[1]);
+    }
+
+    // Check for game over
+    if (checkGameOver()) return;
+
+    // Continue attacking on hit
+    setTimeout(computerTurn, 1000);
+  } else {
+    // Miss
+    tile.state = 2;
+
+    // If we were targeting in a direction and missed, try the opposite direction
+    if (computerLastHit && computerOriginalHit) {
+      if (computerHitDirection !== null) {
+        // Switch to opposite direction from original hit
+        computerTargetQueue = [];
+        switchDirection();
+      }
+    }
+
+    // Switch to player turn
+    playerTurn = true;
+    gameScene = "attacking";
+  }
+}
+
+function getComputerTarget() {
+  // If we have targets in queue, use them first
+  if (computerTargetQueue.length > 0) {
+    return computerTargetQueue.shift();
+  }
+
+  // Random targeting
+  let attempts = 0;
+  while (attempts < 100) {
+    let x = Math.floor(Math.random() * TILE_SIZE);
+    let y = Math.floor(Math.random() * TILE_SIZE);
+    let tileIndex = x + y * TILE_SIZE;
+
+    if (TILES[tileIndex].state === 0) {
+      return [x, y];
+    }
+    attempts++;
+  }
+
+  return null;
+}
+
+function addAdjacentTargets(x, y) {
+  let directions = [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ];
+
+  for (let dir of directions) {
+    let newX = x + dir[0];
+    let newY = y + dir[1];
+
+    if (newX >= 0 && newX < TILE_SIZE && newY >= 0 && newY < TILE_SIZE) {
+      let tileIndex = newX + newY * TILE_SIZE;
+      if (TILES[tileIndex].state === 0) {
+        computerTargetQueue.push([newX, newY]);
+      }
+    }
+  }
+}
+
+function continueInDirection(x, y) {
+  if (computerHitDirection === null) return;
+
+  let dir = computerHitDirection;
+  let newX = x + dir[0];
+  let newY = y + dir[1];
+
+  if (newX >= 0 && newX < TILE_SIZE && newY >= 0 && newY < TILE_SIZE) {
+    let tileIndex = newX + newY * TILE_SIZE;
+    if (TILES[tileIndex].state === 0) {
+      computerTargetQueue.unshift([newX, newY]);
+    }
+  }
+}
+
+function switchDirection() {
+  if (computerOriginalHit && computerHitDirection) {
+    // Switch to opposite direction from original hit
+    let oppositeDir = [-computerHitDirection[0], -computerHitDirection[1]];
+    let newX = computerOriginalHit[0] + oppositeDir[0];
+    let newY = computerOriginalHit[1] + oppositeDir[1];
+
+    if (newX >= 0 && newX < TILE_SIZE && newY >= 0 && newY < TILE_SIZE) {
+      let tileIndex = newX + newY * TILE_SIZE;
+      if (TILES[tileIndex].state === 0) {
+        computerTargetQueue.unshift([newX, newY]);
+        computerHitDirection = oppositeDir;
+      }
+    }
+  }
+}
+
+function checkGameOver() {
+  let playerShipsLeft = 0;
+  let computerShipsLeft = 0;
+
+  for (let ship of pships) {
+    if (!ship.destroyed) playerShipsLeft++;
+  }
+
+  for (let ship of computerShips) {
+    if (!ship.destroyed) computerShipsLeft++;
+  }
+
+  if (playerShipsLeft === 0) {
+    gameOver = true;
+    winner = "COMPUTER";
+    return true;
+  } else if (computerShipsLeft === 0) {
+    gameOver = true;
+    winner = "PLAYER";
+    return true;
+  }
+
+  return false;
 }
 
 function windowResized() {
@@ -550,39 +1048,16 @@ function mouseMoved() {
 }
 
 function mousePressed() {
-  // Check if clicking on a ship
-  for (let ship of pships) {
-    if (ship.isMouseOver(mouseX, mouseY)) {
-      selectedShip = ship;
-      ship.state = 2; // selected
+  if (gameOver) return;
 
-      // Calculate drag offset
-      dragOffset.x = mouseX - ship.x;
-      dragOffset.y = mouseY - ship.y;
-      isDragging = true;
-
-      return; // Don't process tile click
-    }
-  }
-
-  // If not clicking on ship, deselect
-  if (selectedShip) {
-    selectedShip.state = selectedShip.state === 2 ? 0 : selectedShip.state;
-  }
-  selectedShip = null;
-
-  // Handle tile clicking (original functionality)
-  if (isMouseInGrid()) {
-    let tile = getTile(mouseX, mouseY);
-    let index = TILES[tile[0] + 10 * tile[1]];
-    if (index && index.state == 0) {
-      index.state = 1;
-    }
+  if (gameScene === "placing") {
+    handlePlacingMousePress();
+  } else if (gameScene === "attacking" && playerTurn) {
+    handleAttackingMousePress();
   }
 }
 
-// Right mouse button functionality
-function mousePressed() {
+function handlePlacingMousePress() {
   if (mouseButton === RIGHT) {
     // Reset selected ship to original position
     if (selectedShip) {
@@ -592,7 +1067,7 @@ function mousePressed() {
     return;
   }
 
-  // Left click logic (existing)
+  // Left click logic
   for (let ship of pships) {
     if (ship.isMouseOver(mouseX, mouseY)) {
       selectedShip = ship;
@@ -610,25 +1085,58 @@ function mousePressed() {
     selectedShip.state = selectedShip.state === 2 ? 0 : selectedShip.state;
   }
   selectedShip = null;
+}
 
-  if (isMouseInGrid()) {
-    let tile = getTile(mouseX, mouseY);
-    let index = TILES[tile[0] + 10 * tile[1]];
-    if (index && index.state == 0) {
-      index.state = 1;
+function handleAttackingMousePress() {
+  if (!isMouseInGrid()) return;
+
+  let tile = getTile(mouseX, mouseY);
+  let tileIndex = tile[0] + tile[1] * TILE_SIZE;
+  let computerTile = COMPUTER_TILES[tileIndex];
+
+  // Can't click already revealed tiles
+  if (computerTile.revealed) return;
+
+  computerTile.revealed = true;
+
+  if (computerTile.occupied) {
+    // Hit!
+    computerTile.state = 1;
+
+    // Find the computer ship and reduce HP
+    for (let ship of computerShips) {
+      if (ship.id === computerTile.shipId) {
+        ship.hp--;
+        if (ship.hp <= 0) {
+          ship.destroyed = true;
+        }
+        break;
+      }
     }
+
+    // Check for game over
+    if (checkGameOver()) return;
+
+    // Player continues on hit - don't switch turns
+  } else {
+    // Miss
+    computerTile.state = 2;
+
+    // Switch to computer turn
+    playerTurn = false;
+    gameScene = "observing";
   }
 }
 
 function mouseDragged() {
-  if (isDragging && selectedShip) {
+  if (gameScene === "placing" && isDragging && selectedShip) {
     selectedShip.x = mouseX - dragOffset.x;
     selectedShip.y = mouseY - dragOffset.y;
   }
 }
 
 function mouseReleased() {
-  if (isDragging && selectedShip) {
+  if (gameScene === "placing" && isDragging && selectedShip) {
     // Try to place ship on grid
     if (isMouseInGrid() && selectedShip.canPlaceHere()) {
       selectedShip.placeOnGrid();
@@ -643,24 +1151,102 @@ function mouseReleased() {
 }
 
 function keyPressed() {
-  // Rotate selected ship
-  if ((key === "r" || key === "R") && selectedShip) {
-    if (!selectedShip.rotate()) {
-      console.log("Cannot rotate ship here");
+  if (gameOver) {
+    if (key === " ") {
+      // Restart game
+      restartGame();
     }
+    return;
   }
 
-  // Reset all ships to original positions
-  if (key === "c" || key === "C") {
-    for (let ship of pships) {
-      ship.returnToOriginal();
+  if (gameScene === "placing") {
+    // Rotate selected ship
+    if ((key === "r" || key === "R") && selectedShip) {
+      if (!selectedShip.rotate()) {
+        console.log("Cannot rotate ship here");
+      }
     }
-    selectedShip = null;
+
+    // Reset all ships to original positions
+    if (key === "c" || key === "C") {
+      for (let ship of pships) {
+        ship.returnToOriginal();
+      }
+      selectedShip = null;
+    }
+
+    // Start game
+    if (key === " ") {
+      // Check if all ships are placed
+      let allPlaced = true;
+      for (let ship of pships) {
+        if (ship.state !== 1) {
+          allPlaced = false;
+          break;
+        }
+      }
+
+      if (allPlaced) {
+        gameScene = "attacking";
+        gameStarted = true;
+        playerTurn = true;
+      }
+    }
   }
+}
+
+function restartGame() {
+  // Reset game state
+  gameScene = "placing";
+  playerTurn = true;
+  gameStarted = false;
+  gameOver = false;
+  winner = null;
+
+  // Reset computer AI
+  computerLastHit = null;
+  computerTargetQueue = [];
+  computerHitDirection = null;
+  computerOriginalHit = null;
+
+  // Reset tiles
+  for (let i = 0; i < 100; i++) {
+    TILES[i] = new Tile();
+    COMPUTER_TILES[i] = new Tile();
+  }
+
+  // Reset player ships
+  for (let ship of pships) {
+    ship.returnToOriginal();
+    ship.hp = ship.size;
+    ship.destroyed = false;
+  }
+
+  selectedShip = null;
+  isDragging = false;
+
+  // Generate new computer ships
+  generateComputerShips();
 }
 
 function getTile(x, y) {
   let col = floor((x - gridArea.x) / (gridArea.w / TILE_SIZE));
   let row = floor((y - gridArea.y) / (gridArea.h / TILE_SIZE));
   return [col, row];
+}
+
+async function submitScore(username, score) {
+  const res = await fetch(
+    "https://battle-ships.shadow1088punch.workers.dev/submit",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ username, score }),
+    },
+  );
+
+  const text = await res.text();
+  console.log("Submit response:", text);
 }
